@@ -190,14 +190,18 @@ tr:hover td { background: var(--bg3); }
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       Refresh
     </button>
+<<<<<<< HEAD
     <div id="live-indicator" style="display:none;align-items:center;gap:6px;font-size:10px;color:var(--green);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;background:var(--green-bg);padding:4px 8px;border-radius:6px;border:1px solid rgba(62,207,142,0.2);">
       <span style="width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block;animation:pulse 2s infinite;"></span>
       Live
     </div>
+=======
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
     <button class="refresh-btn" onclick="toggleConfig()">⚙ Setup</button>
   </div>
 </div>
 
+<<<<<<< HEAD
 <style>
 @keyframes pulse {
   0% { opacity: 1; transform: scale(1); }
@@ -206,6 +210,8 @@ tr:hover td { background: var(--bg3); }
 }
 </style>
 
+=======
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
 <div class="main">
 
   <!-- CONFIG PANEL -->
@@ -367,8 +373,12 @@ const DEMO = [
 ];
 
 // ---------- CONFIG ----------
+<<<<<<< HEAD
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzPwnC_3cXKbaL_Ta6wKyaFcg8eoRQU_wdEKSDzfXqM_DkZ4cQFQlw6qy22U4nJMTSHRA/exec';
 function getApiUrl(){ return localStorage.getItem('procurement_api_url') || DEFAULT_API_URL; }
+=======
+function getApiUrl(){ return localStorage.getItem('procurement_api_url') || ''; }
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
 function saveConfig(){
   const url = document.getElementById('api-url').value.trim();
   if(!url){ alert('Please enter a valid URL'); return; }
@@ -383,7 +393,11 @@ function toggleConfig(){
 }
 
 // ---------- FETCH ----------
+<<<<<<< HEAD
 async function fetchData(isAuto = false){
+=======
+async function fetchData(){
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
   const url = getApiUrl();
   if(!url){
     ALL_DATA = DEMO;
@@ -393,12 +407,17 @@ async function fetchData(isAuto = false){
     render();
     return;
   }
+<<<<<<< HEAD
   
   if(!isAuto) {
     document.getElementById('loading').classList.add('show');
     hideAll();
   }
   
+=======
+  document.getElementById('loading').classList.add('show');
+  hideAll();
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
   try {
     const res = await fetch(url);
     if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -407,11 +426,15 @@ async function fetchData(isAuto = false){
     ALL_DATA = json.data || [];
     document.getElementById('sheet-name').textContent = json.sheetName || 'Google Sheet connected';
     document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+<<<<<<< HEAD
     document.getElementById('live-indicator').style.display = 'flex';
+=======
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
     hideStatus();
     populateFilters();
     render();
   } catch(e){
+<<<<<<< HEAD
     if(!isAuto) {
       ALL_DATA = DEMO;
       showStatus('Could not connect to sheet: ' + e.message + ' — showing demo data', true);
@@ -421,6 +444,14 @@ async function fetchData(isAuto = false){
     console.error('Auto-refresh failed:', e);
   } finally {
     if(!isAuto) document.getElementById('loading').classList.remove('show');
+=======
+    ALL_DATA = DEMO;
+    showStatus('Could not connect to sheet: ' + e.message + ' — showing demo data', true);
+    populateFilters();
+    render();
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
   }
 }
 
@@ -641,11 +672,14 @@ function renderMainTable(data){
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('api-url').value = getApiUrl();
   fetchData();
+<<<<<<< HEAD
   
   // Set up live refresh every 5 minutes
   setInterval(() => {
     fetchData(true);
   }, 300000); 
+=======
+>>>>>>> c0654720587ce24ac300da584faab5e6571fc5f8
 });
 </script>
 </body>
