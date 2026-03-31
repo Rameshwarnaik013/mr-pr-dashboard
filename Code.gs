@@ -153,8 +153,20 @@ function parseDate(val) {
   if (val instanceof Date) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
-  const str = String(val).trim();
-  // Try parsing ISO or common formats
+  
+  let str = String(val).trim();
+  if(str.indexOf('T') > -1) str = str.split('T')[0];
+  if(str.indexOf(' ') > -1) str = str.split(' ')[0];
+  
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    let d = m[1].length === 1 ? '0' + m[1] : m[1];
+    let mo = m[2].length === 1 ? '0' + m[2] : m[2];
+    return m[3] + '-' + mo + '-' + d;
+  }
+  
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
     return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");

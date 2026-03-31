@@ -490,15 +490,24 @@ function inDateRange(row){
 // ---------- FILTERS ----------
 function populateFilters(){
   const skus=[...new Set(ALL_DATA.map(r=>r.sku))].sort();
-  const months=[...new Set(ALL_DATA.map(r=>r.mrDate.slice(0,7)))].sort().reverse();
+  const months=[...new Set(ALL_DATA.map(r=>r.mrDate ? r.mrDate.slice(0,7) : ""))].filter(Boolean).sort().reverse();
   const whs=[...new Set(ALL_DATA.map(r=>r.wh))].sort();
-  const fill = (id, items) => {
+  
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const formatMonth = (yyyy_mm) => {
+    const p = yyyy_mm.split('-');
+    if(p.length < 2) return yyyy_mm;
+    const m = parseInt(p[1],10);
+    return monthNames[m-1] + "-" + p[0].slice(2);
+  };
+
+  const fill = (id, items, isMonth=false) => {
     const el = document.getElementById(id);
     const cur = el.value;
-    el.innerHTML = '<option value="">All</option>' + items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${v.split(' - ')[0]}</option>`).join('');
+    el.innerHTML = '<option value="">All</option>' + items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${isMonth ? formatMonth(v) : v.split(' - ')[0]}</option>`).join('');
   };
   fill('sku-filter', skus);
-  fill('month-filter', months);
+  fill('month-filter', months, true);
   fill('wh-filter', whs);
 }
 
