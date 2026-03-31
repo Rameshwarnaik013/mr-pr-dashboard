@@ -300,7 +300,12 @@ tr:hover td { background: var(--bg3); }
   <div class="table-section" id="split-section" style="display:none">
     <div class="table-header">
       <span class="table-title">⚠ Split PRs — Same MR fulfilled across multiple PRs</span>
-      <span class="table-count" id="split-count"></span>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="table-count" id="split-count"></span>
+        <button class="qbtn" onclick="exportSplitExcel()" title="Download as CSV">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;margin-bottom:2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
+        </button>
+      </div>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
@@ -580,6 +585,47 @@ function renderSplitTable(data){
       <td><span class="badge ${fillPct>=100?'badge-ok':fillPct>=50?'badge-warn':'badge-danger'}">${fillPct}% filled</span></td>
     </tr>`;
   }).join('');
+}
+
+function exportSplitExcel(){
+  const data = getFiltered();
+  const map={};
+  data.forEach(r=>{
+    const k=r.mr+'|'+r.sku;
+    if(!map[k]) map[k]={mr:r.mr,sku:r.sku,mrQty:r.mrQty,prs:[],totalPR:0,mrDate:r.mrDate};
+    map[k].prs.push(r.prId);
+    map[k].totalPR+=r.prQty;
+  });
+  const splits=Object.values(map).filter(r=>r.prs.length>1);
+  if(!splits.length){
+    alert("No Split PRs to export");
+    return;
+  }
+  
+  let csv = 'MR No,SKU Name,MR Qty,Fulfilled,Gap,PRs,Status\\n';
+  splits.forEach(r => {
+    const gap = r.mrQty - r.totalPR;
+    const fillPct = Math.round(r.totalPR/r.mrQty*100);
+    const esc = s => `"${String(s).replace(/"/g, '""')}"`;
+    csv += [
+      r.mr,
+      r.sku,
+      r.mrQty,
+      r.totalPR,
+      gap,
+      r.prs.join(', '),
+      `${fillPct}% filled`
+    ].map(esc).join(',') + '\\n';
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Split_PRs_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function renderMainTable(data){
