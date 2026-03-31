@@ -376,6 +376,27 @@ function toggleConfig(){
 }
 
 // ---------- FETCH ----------
+function normalizeDateStr(dStr) {
+  if (!dStr) return "";
+  let s = String(dStr).trim();
+  if(s.includes('T')) s = s.split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s.+)?$/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  }
+  
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    const y = dt.getFullYear();
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+  }
+  return s.split(' ')[0];
+}
+
 async function fetchData(isAuto = false){
   const url = getApiUrl();
   if(!url){
@@ -393,7 +414,14 @@ async function fetchData(isAuto = false){
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
     if(json.error) throw new Error(json.error);
-    ALL_DATA = json.data || [];
+    
+    const rawData = json.data || [];
+    ALL_DATA = rawData.map(r => ({
+      ...r,
+      mrDate: normalizeDateStr(r.mrDate),
+      prDate: normalizeDateStr(r.prDate)
+    }));
+
     document.getElementById('sheet-name').textContent = json.sheetName || 'Google Sheet connected';
     document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
     document.getElementById('live-indicator').style.display = 'flex';
