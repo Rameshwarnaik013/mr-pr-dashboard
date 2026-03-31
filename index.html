@@ -68,13 +68,8 @@ input[type="date"] { color-scheme: dark; }
 .date-range { display: flex; align-items: center; gap: 6px; }
 .date-range span { font-size: 11px; color: var(--text3); }
 
-/* STATUS BAR */
-.status-bar { background: var(--amber-bg); border: 1px solid rgba(245,166,35,0.2); border-radius: var(--r); padding: 10px 14px; margin-bottom: 20px; display: none; }
-.status-bar.show { display: flex; align-items: center; gap: 8px; }
-.status-bar.error { background: var(--red-bg); border-color: rgba(240,82,82,0.2); }
-.status-text { font-size: 12px; color: var(--amber); }
-.status-bar.error .status-text { color: var(--red); }
-.setup-link { font-size: 12px; color: var(--accent); text-decoration: underline; cursor: pointer; margin-left: auto; }
+
+/* API CONFIG */
 
 /* API CONFIG */
 .config-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 20px; margin-bottom: 20px; display: none; }
@@ -219,12 +214,6 @@ tr:hover td { background: var(--bg3); }
       2. Paste the <code>Code.gs</code> script provided → Deploy as Web App (Anyone access)<br/>
       3. Copy the Web App URL and paste it above
     </div>
-  </div>
-
-  <!-- STATUS -->
-  <div class="status-bar" id="status-bar">
-    <span class="status-text" id="status-text"></span>
-    <span class="setup-link" onclick="toggleConfig()">Configure →</span>
   </div>
 
   <!-- FILTERS -->
@@ -385,9 +374,7 @@ function toggleConfig(){
 async function fetchData(isAuto = false){
   const url = getApiUrl();
   if(!url){
-    ALL_DATA = DEMO;
     document.getElementById('sheet-name').textContent = 'Demo mode — configure sheet to load live data';
-    showStatus('Demo data loaded. Click ⚙ Setup to connect your Google Sheet.', false);
     populateFilters();
     render();
     return;
@@ -405,13 +392,11 @@ async function fetchData(isAuto = false){
     document.getElementById('sheet-name').textContent = json.sheetName || 'Google Sheet connected';
     document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
     document.getElementById('live-indicator').style.display = 'flex';
-    hideStatus();
     populateFilters();
     render();
   } catch(e){
     if(!isAuto) {
       ALL_DATA = DEMO;
-      showStatus('Could not connect to sheet: ' + e.message + ' — showing demo data', true);
       populateFilters();
       render();
     }
@@ -430,13 +415,6 @@ function showAll(){
   document.getElementById('kpi-grid').style.display='grid';
   document.getElementById('charts-row').style.display='grid';
 }
-function showStatus(msg, isError){
-  const bar = document.getElementById('status-bar');
-  bar.className = 'status-bar show' + (isError?' error':'');
-  document.getElementById('status-text').textContent = msg;
-}
-function hideStatus(){ document.getElementById('status-bar').classList.remove('show'); }
-
 // ---------- DATE FILTERS ----------
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function yesterdayStr(){ const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
