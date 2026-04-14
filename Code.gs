@@ -1,5 +1,5 @@
 // ============================================================
-// PROCUREMENT DASHBOARD — Google Apps Script
+// PROCUREMENT DASHBOARD — Google Apps Script (ROBUST VERSION)
 // ============================================================
 // HOW TO DEPLOY:
 //  1. Open your Google Sheet
@@ -14,108 +14,114 @@
 // 10. Paste that URL into the dashboard Setup panel
 // ============================================================
 
-// ---- CONFIGURATION: Update these to match your sheet ----
+// ---- CONFIGURATION ----
 const CONFIG = {
-  // Name of the sheet/tab containing your MR data
   SHEET_NAME: "Sheet1",
-
-  // Column header names (must match exactly, case-sensitive)
-  COL_MR_NO:         "MR No.",
-  COL_MR_DATE:       "MR Date",
-  COL_ITEM_CODE:     "item_code",
-  COL_SKU_NAME:      "SKU Name",
-  COL_UOM:           "UOM",
-  COL_MR_UNITS:      "MR Units",
-  COL_MR_WAREHOUSE:  "MR Target Warehouse",
-  COL_PR_ID:         "PR ID",
-  COL_PR_DATE:       "PR Date",
-  COL_PR_QTY:        "PR Qty",
-  COL_MR_ID:         "MR ID",
-  COL_PR_CREATED_BY: "PR Created By",
-  COL_MR_CREATED_BY: "MR Created By",
-  COL_FILL_DAYS:     "`Fullfillment Days`",   // note: matches your sheet's spelling exactly, including backticks! Linked to frontend dynamic SLA.
-  COL_FILL_RATE:     "Fill_Rate",
-
-  // CORS: Add your Vercel domain here for security (or keep * for open access)
   ALLOWED_ORIGIN: "*"
 };
-// ---- END CONFIGURATION ----
+
+// Column header names — the script will try EXACT match first,
+// then try matching after stripping backticks/spaces.
+// This way it works whether your sheet says `Fullfillment Days` or Fullfillment Days.
+const COLUMN_MAP = {
+  mrNo:        "MR No.",
+  mrDate:      "MR Date",
+  itemCode:    "item_code",
+  skuName:     "SKU Name",
+  uom:         "UOM",
+  mrUnits:     "MR Units",
+  mrWarehouse: "MR Target Warehouse",
+  prId:        "PR ID",
+  prDate:      "PR Date",
+  prQty:       "PR Qty",
+  mrId:        "MR ID",
+  prCreatedBy: "PR Created By",
+  mrCreatedBy: "MR Created By",
+  fillDays:    "Fullfillment Days",
+  fillRate:    "Fill_Rate"
+};
 
 
 /**
  * Handles GET requests from the dashboard.
- * Supports optional query params:
- *   ?from=YYYY-MM-DD  — filter MR Date from this date
- *   ?to=YYYY-MM-DD    — filter MR Date to this date
- *   ?sku=SKU Name     — filter by SKU
- *   ?wh=Warehouse     — filter by warehouse
  */
 function doGet(e) {
   try {
     const params = e && e.parameter ? e.parameter : {};
     const data = getData(params);
-    return buildResponse({ success: true, data: data, sheetName: CONFIG.SHEET_NAME, count: data.length, timestamp: new Date().toISOString() });
+    return buildResponse({
+      success: true,
+      data: data,
+      sheetName: CONFIG.SHEET_NAME,
+      count: data.length,
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
-    return buildResponse({ success: false, error: err.message, data: [] });
+    return buildResponse({ success: false, error: err.message, stack: err.stack, data: [] });
   }
 }
 
 
 /**
- * Main data fetching + transformation function.
+ * Main data fetching + transformation.
+ * Reads ALL rows from Sheet1, maps columns flexibly, returns JSON.
  */
 function getData(params) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
-
   if (!sheet) {
-    throw new Error("Sheet '" + CONFIG.SHEET_NAME + "' not found. Check CONFIG.SHEET_NAME in the script.");
+    throw new Error("Sheet '" + CONFIG.SHEET_NAME + "' not found. Available sheets: " +
+      ss.getSheets().map(s => s.getName()).join(", "));
   }
 
   const rawData = sheet.getDataRange().getValues();
   if (rawData.length < 2) return [];
 
-  // Build column index map from header row
+  // Build column index map with flexible matching
   const headers = rawData[0].map(h => String(h).trim());
-  const idx = buildIndexMap(headers);
+  const idx = buildFlexibleIndexMap(headers);
 
-  // Parse rows
+  // Parse ALL rows
   const rows = [];
   for (let i = 1; i < rawData.length; i++) {
     const row = rawData[i];
 
-    // Skip completely empty rows
-    if (!row[idx[CONFIG.COL_MR_NO]]) continue;
+    // Skip truly empty rows (check first few cells)
+    const mrNo = safeStr(row, idx.mrNo);
+    if (!mrNo && !safeStr(row, idx.skuName) && !safeStr(row, idx.prId)) continue;
 
-    const mrDate  = parseDate(row[idx[CONFIG.COL_MR_DATE]]);
-    const prDate  = parseDate(row[idx[CONFIG.COL_PR_DATE]]);
-    const mrQty   = toNum(row[idx[CONFIG.COL_MR_UNITS]]);
-    const prQty   = toNum(row[idx[CONFIG.COL_PR_QTY]]);
-    const days    = toNum(row[idx[CONFIG.COL_FILL_DAYS]]);
-    const fill    = toNum(row[idx[CONFIG.COL_FILL_RATE]]);
-    const sku     = String(row[idx[CONFIG.COL_SKU_NAME]] || "").trim();
-    const wh      = String(row[idx[CONFIG.COL_MR_WAREHOUSE]] || "").trim();
+    const mrDate  = parseDate(safeVal(row, idx.mrDate));
+    const prDate  = parseDate(safeVal(row, idx.prDate));
+    const sku     = safeStr(row, idx.skuName);
+    const wh      = safeStr(row, idx.mrWarehouse);
+    const mrBy    = safeStr(row, idx.mrCreatedBy);
+    const prBy    = safeStr(row, idx.prCreatedBy);
+    const mrQty   = toNum(safeVal(row, idx.mrUnits));
+    const prQty   = toNum(safeVal(row, idx.prQty));
+    const days    = toNum(safeVal(row, idx.fillDays));
+    const fill    = toNum(safeVal(row, idx.fillRate));
 
-    // Apply optional server-side filters
-    if (params.from && mrDate < params.from) continue;
-    if (params.to   && mrDate > params.to)   continue;
+    // Server-side filters (optional, sent from dashboard URL params)
+    if (params.from && mrDate && mrDate < params.from) continue;
+    if (params.to   && mrDate && mrDate > params.to)   continue;
     if (params.sku  && sku !== params.sku)   continue;
     if (params.wh   && wh  !== params.wh)    continue;
+    if (params.person && mrBy !== params.person && prBy !== params.person) continue;
 
     rows.push({
-      mr:         String(row[idx[CONFIG.COL_MR_NO]] || "").trim(),
+      mr:         mrNo,
       mrDate:     mrDate,
       prDate:     prDate,
-      itemCode:   String(row[idx[CONFIG.COL_ITEM_CODE]] || "").trim(),
+      itemCode:   safeStr(row, idx.itemCode),
       sku:        sku,
-      uom:        String(row[idx[CONFIG.COL_UOM]] || "").trim(),
+      uom:        safeStr(row, idx.uom),
       mrQty:      mrQty,
       wh:         wh,
-      prId:       String(row[idx[CONFIG.COL_PR_ID]] || "").trim(),
+      prId:       safeStr(row, idx.prId),
       prQty:      prQty,
-      mrId:       String(row[idx[CONFIG.COL_MR_ID]] || "").trim(),
-      prCreated:  String(row[idx[CONFIG.COL_PR_CREATED_BY]] || "").trim(),
-      mrCreated:  String(row[idx[CONFIG.COL_MR_CREATED_BY]] || "").trim(),
+      mrId:       safeStr(row, idx.mrId),
+      prCreated:  prBy,
+      mrCreated:  mrBy,
       days:       days,
       fill:       fill
     });
@@ -125,59 +131,100 @@ function getData(params) {
 }
 
 
+// ---------- FLEXIBLE COLUMN MATCHING ----------
+
+/**
+ * Build a {fieldKey: columnIndex} map.
+ * For each expected column, tries:
+ *   1. Exact match
+ *   2. Match after stripping backticks from header
+ *   3. Match after stripping backticks from both sides
+ * If a column can't be found, its index is set to -1 (data will default to ""/0).
+ */
+function buildFlexibleIndexMap(headers) {
+  const idx = {};
+  const cleanHeaders = headers.map(h => h.replace(/`/g, '').trim());
+
+  for (const [key, colName] of Object.entries(COLUMN_MAP)) {
+    // Try exact match first
+    let found = headers.indexOf(colName);
+
+    // Try with backticks around the name: `colName`
+    if (found === -1) {
+      found = headers.indexOf("`" + colName + "`");
+    }
+
+    // Try matching cleaned headers (backticks stripped from sheet headers)
+    if (found === -1) {
+      found = cleanHeaders.indexOf(colName);
+    }
+
+    // Try case-insensitive match as last resort
+    if (found === -1) {
+      const lower = colName.toLowerCase();
+      found = cleanHeaders.findIndex(h => h.toLowerCase() === lower);
+    }
+
+    idx[key] = found;
+  }
+
+  return idx;
+}
+
+
+// ---------- SAFE ACCESS HELPERS ----------
+
+function safeVal(row, colIdx) {
+  if (colIdx < 0 || colIdx >= row.length) return null;
+  return row[colIdx];
+}
+
+function safeStr(row, colIdx) {
+  const v = safeVal(row, colIdx);
+  if (v === null || v === undefined) return "";
+  return String(v).trim();
+}
+
+
 // ---------- HELPERS ----------
 
 /**
- * Build a {columnName: columnIndex} map from the header row.
- * Throws a helpful error if any configured column is missing.
- */
-function buildIndexMap(headers) {
-  const map = {};
-  headers.forEach((h, i) => { map[h] = i; });
-
-  // Validate all required columns exist
-  const required = Object.values(CONFIG).filter(v => typeof v === 'string' && v !== CONFIG.ALLOWED_ORIGIN && v !== CONFIG.SHEET_NAME);
-  const missing = required.filter(col => !(col in map));
-  if (missing.length > 0) {
-    throw new Error("Missing columns in sheet: " + missing.join(", ") + ". Check CONFIG column names in the script.");
-  }
-  return map;
-}
-
-/**
  * Parse a date value from a cell into YYYY-MM-DD string.
- * Handles Date objects, strings, and serial numbers.
+ * Handles Date objects, strings, and various formats.
  */
 function parseDate(val) {
   if (!val) return "";
   if (val instanceof Date) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
-  
+
   let str = String(val).trim();
-  if(str.indexOf('T') > -1) str = str.split('T')[0];
-  if(str.indexOf(' ') > -1) str = str.split(' ')[0];
-  
+  if (str.indexOf('T') > -1) str = str.split('T')[0];
+
+  // Already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
 
-  let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  // DD/MM/YYYY or DD-MM-YYYY
+  let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s.+)?$/);
   if (m) {
     let d = m[1].length === 1 ? '0' + m[1] : m[1];
     let mo = m[2].length === 1 ? '0' + m[2] : m[2];
     return m[3] + '-' + mo + '-' + d;
   }
-  
+
+  // Try native Date parsing
   const d = new Date(str);
   if (!isNaN(d.getTime())) {
     return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
-  return str;
+  return str.split(' ')[0];
 }
 
 /**
  * Convert a cell value to a number safely.
  */
 function toNum(val) {
+  if (val === null || val === undefined || val === "") return 0;
   const n = parseFloat(val);
   return isNaN(n) ? 0 : n;
 }
@@ -193,16 +240,24 @@ function buildResponse(payload) {
 
 
 // ============================================================
-// TEST FUNCTION — Run this manually from the Apps Script editor
-// to verify your sheet connection before deploying.
+// TEST FUNCTION — Run manually from Apps Script editor to verify.
 // Select "testScript" from the dropdown and click ▶ Run.
 // ============================================================
 function testScript() {
   const result = getData({});
   Logger.log("Total rows fetched: " + result.length);
   if (result.length > 0) {
-    Logger.log("First row sample: " + JSON.stringify(result[0]));
+    Logger.log("First row: " + JSON.stringify(result[0]));
+    Logger.log("Last row: " + JSON.stringify(result[result.length - 1]));
   } else {
     Logger.log("No rows returned. Check sheet name and column headers.");
+  }
+
+  // Log the headers for debugging
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  if (sheet) {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    Logger.log("Sheet headers: " + JSON.stringify(headers.map(h => String(h).trim())));
   }
 }
