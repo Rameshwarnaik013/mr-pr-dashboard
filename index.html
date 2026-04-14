@@ -238,8 +238,13 @@ tr:hover td { background: var(--bg3); }
     </div>
     <div class="filter-sep"></div>
     <div class="filter-group">
+      <span class="filter-label">Search MR</span>
+      <input type="text" id="mr-search" placeholder="Type MR#..." oninput="render()" style="width:100px" />
+    </div>
+    <div class="filter-group">
       <span class="filter-label">SKU</span>
-      <select id="sku-filter" onchange="render()"><option value="">All SKUs</option></select>
+      <input list="sku-list" id="sku-filter" placeholder="Search SKU..." onchange="render()" style="width:140px" />
+      <datalist id="sku-list"></datalist>
     </div>
     <div class="filter-group">
       <span class="filter-label">Warehouse</span>
@@ -522,16 +527,27 @@ function populateFilters(){
 
   const fill = (id, items, isMonth=false) => {
     const el = document.getElementById(id);
+    if (el.tagName === 'DATALIST') {
+      el.innerHTML = items.map(v => `<option value="${v}">`).join('');
+      return;
+    }
     const cur = el.value;
-    el.innerHTML = '<option value="">All</option>' + items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${isMonth ? formatMonth(v) : (v.includes('@') ? v.split('@')[0] : v.split(' - ')[0])}</option>`).join('');
+    el.innerHTML = '<option value="">All</option>' + items.map(v => {
+      let label = v;
+      if (isMonth) label = formatMonth(v);
+      else if (v.includes('@')) label = v.split('@')[0];
+      // Note: Removed v.split(' - ')[0] to prevent SKU name truncation
+      return `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
+    }).join('');
   };
-  fill('sku-filter', skus);
+  fill('sku-list', skus);
   fill('month-filter', months, true);
   fill('wh-filter', whs);
   fill('person-filter', persons);
 }
 
 function getFiltered(){
+  const mr = document.getElementById('mr-search').value.toLowerCase();
   const sku = document.getElementById('sku-filter').value;
   const month = document.getElementById('month-filter').value;
   const wh = document.getElementById('wh-filter').value;
@@ -540,13 +556,14 @@ function getFiltered(){
 
   return ALL_DATA.filter(r=>{
     const dateMatch = inDateRange(r);
+    const mrMatch = !mr || r.mr.toLowerCase().includes(mr);
     const skuMatch = !sku || r.sku===sku;
-    const monthMatch = !month || r.mrDate.slice(0,7)===month;
+    const monthMatch = !month || (r.mrDate && r.mrDate.slice(0,7)===month);
     const whMatch = !wh || r.wh===wh;
     const personMatch = !person || r.mrCreated===person || r.prCreated===person;
     const delayedMatch = !delayedOnly || r.days > SLA;
 
-    return dateMatch && skuMatch && monthMatch && whMatch && personMatch && delayedMatch;
+    return dateMatch && mrMatch && skuMatch && monthMatch && whMatch && personMatch && delayedMatch;
   });
 }
 
