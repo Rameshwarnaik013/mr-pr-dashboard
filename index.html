@@ -624,10 +624,11 @@ function renderKPIs(data){
   const totMR = uniqueMRs.reduce((s,r)=>s+r.mrQty,0);
   const totPR = data.reduce((s,r)=>s+r.prQty,0);
   const gap = totMR - totPR;
+  const partialPct = uniqueMRs.length > 0 ? Math.round(partials / uniqueMRs.length * 100) : 0;
   document.getElementById('k-avg').textContent = avgDays+'d';
   document.getElementById('k-ontime').textContent = onTimePct+'%';
   document.getElementById('k-ontime-sub').textContent = onTimeCount+'/'+data.length+' PRs within SLA';
-  document.getElementById('k-partial').textContent = partials;
+  document.getElementById('k-partial').textContent = `${partials} (${partialPct}%)`;
   document.getElementById('k-gap').textContent = gap.toLocaleString();
 }
 
