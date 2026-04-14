@@ -268,6 +268,7 @@ tr:hover td { background: var(--bg3); }
       </label>
     </div>
   </div>
+  <div id="filter-status" style="margin: -10px 0 20px 0; font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; display: flex; gap: 15px;"></div>
 
   <!-- LOADING -->
   <div class="loading" id="loading">
@@ -570,6 +571,15 @@ function getFiltered(){
 // ---------- RENDER ----------
 function render(){
   const data = getFiltered();
+  
+  const statusEl = document.getElementById('filter-status');
+  const uniqueSkusCount = [...new Set(ALL_DATA.map(r=>r.sku))].filter(Boolean).length;
+  statusEl.innerHTML = `
+    <span>📊 Total Rows: <strong>${ALL_DATA.length}</strong></span>
+    <span>📦 Unique SKUs: <strong>${uniqueSkusCount}</strong></span>
+    <span>🔍 Showing: <strong>${data.length}</strong> MRs</span>
+  `;
+
   if(data.length===0){
     hideAll();
     document.getElementById('split-section').style.display='none';
