@@ -247,6 +247,11 @@ tr:hover td { background: var(--bg3); }
       <datalist id="sku-list"></datalist>
     </div>
     <div class="filter-group">
+      <span class="filter-label">Item type</span>
+      <input list="item-type-list" id="item-type-filter" placeholder="Search type..." onchange="render()" style="width:110px" />
+      <datalist id="item-type-list"></datalist>
+    </div>
+    <div class="filter-group">
       <span class="filter-label">Warehouse</span>
       <select id="wh-filter" onchange="render()"><option value="">All Warehouses</option></select>
     </div>
@@ -328,7 +333,15 @@ tr:hover td { background: var(--bg3); }
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
-        <th>MR No</th><th>SKU Name</th><th>MR Qty</th><th>Fulfilled</th><th>Gap</th><th>PRs</th><th>Status</th>
+        <th>MR No</th>
+        <th>MR Date</th>
+        <th>SKU Name</th>
+        <th>MR Qty</th>
+        <th>Fulfilled</th>
+        <th>Gap</th>
+        <th>PR IDs</th>
+        <th>PR Dates</th>
+        <th>Status</th>
       </tr></thead>
       <tbody id="split-tbody"></tbody>
     </table></div>
@@ -514,6 +527,7 @@ function inDateRange(row){
 // ---------- FILTERS ----------
 function populateFilters(){
   const skus=[...new Set(ALL_DATA.map(r=>r.sku))].sort();
+  const itemTypes=[...new Set(ALL_DATA.map(r=>r.itemType))].filter(Boolean).sort();
   const months=[...new Set(ALL_DATA.map(r=>r.mrDate ? r.mrDate.slice(0,7) : ""))].filter(Boolean).sort().reverse();
   const whs=[...new Set(ALL_DATA.map(r=>r.wh))].sort();
   const persons=[...new Set([...ALL_DATA.map(r=>r.mrCreated), ...ALL_DATA.map(r=>r.prCreated)])].filter(Boolean).sort();
@@ -528,6 +542,7 @@ function populateFilters(){
 
   const fill = (id, items, isMonth=false) => {
     const el = document.getElementById(id);
+    if (!el) return;
     if (el.tagName === 'DATALIST') {
       el.innerHTML = items.map(v => `<option value="${v}">`).join('');
       return;
@@ -537,11 +552,11 @@ function populateFilters(){
       let label = v;
       if (isMonth) label = formatMonth(v);
       else if (v.includes('@')) label = v.split('@')[0];
-      // Note: Removed v.split(' - ')[0] to prevent SKU name truncation
       return `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
     }).join('');
   };
   fill('sku-list', skus);
+  fill('item-type-list', itemTypes);
   fill('month-filter', months, true);
   fill('wh-filter', whs);
   fill('person-filter', persons);
@@ -550,6 +565,7 @@ function populateFilters(){
 function getFiltered(){
   const mr = document.getElementById('mr-search').value.toLowerCase();
   const sku = document.getElementById('sku-filter').value;
+  const itemType = document.getElementById('item-type-filter').value;
   const month = document.getElementById('month-filter').value;
   const wh = document.getElementById('wh-filter').value;
   const person = document.getElementById('person-filter').value;
@@ -559,12 +575,13 @@ function getFiltered(){
     const dateMatch = inDateRange(r);
     const mrMatch = !mr || r.mr.toLowerCase().includes(mr);
     const skuMatch = !sku || r.sku===sku;
+    const itemTypeMatch = !itemType || r.itemType===itemType;
     const monthMatch = !month || (r.mrDate && r.mrDate.slice(0,7)===month);
     const whMatch = !wh || r.wh===wh;
     const personMatch = !person || r.mrCreated===person || r.prCreated===person;
     const delayedMatch = !delayedOnly || r.days > SLA;
 
-    return dateMatch && mrMatch && skuMatch && monthMatch && whMatch && personMatch && delayedMatch;
+    return dateMatch && mrMatch && skuMatch && itemTypeMatch && monthMatch && whMatch && personMatch && delayedMatch;
   });
 }
 
@@ -574,9 +591,11 @@ function render(){
   
   const statusEl = document.getElementById('filter-status');
   const uniqueSkusCount = [...new Set(ALL_DATA.map(r=>r.sku))].filter(Boolean).length;
+  const uniqueTypesCount = [...new Set(ALL_DATA.map(r=>r.itemType))].filter(Boolean).length;
   statusEl.innerHTML = `
     <span>📊 Total Rows: <strong>${ALL_DATA.length}</strong></span>
     <span>📦 Unique SKUs: <strong>${uniqueSkusCount}</strong></span>
+    <span>🏷️ Item Types: <strong>${uniqueTypesCount}</strong></span>
     <span>🔍 Showing: <strong>${data.length}</strong> MRs</span>
   `;
 
@@ -654,8 +673,9 @@ function renderSplitTable(data){
   const map={};
   data.forEach(r=>{
     const k=r.mr+'|'+r.sku;
-    if(!map[k]) map[k]={mr:r.mr,sku:r.sku,mrQty:r.mrQty,prs:[],totalPR:0,mrDate:r.mrDate};
+    if(!map[k]) map[k]={mr:r.mr,sku:r.sku,mrQty:r.mrQty,prs:[],prDates:[],totalPR:0,mrDate:r.mrDate};
     map[k].prs.push(r.prId);
+    if(r.prDate) map[k].prDates.push(r.prDate);
     map[k].totalPR+=r.prQty;
   });
   const splits=Object.values(map).filter(r=>r.prs.length>1);
@@ -668,11 +688,13 @@ function renderSplitTable(data){
     const fillPct=Math.round(r.totalPR/r.mrQty*100);
     return `<tr>
       <td class="mono">${r.mr} <span class="badge badge-split">SPLIT</span></td>
+      <td class="mono">${r.mrDate || '—'}</td>
       <td>${r.sku}</td>
       <td class="mono">${r.mrQty.toLocaleString()}</td>
       <td class="mono">${r.totalPR.toLocaleString()}</td>
       <td class="${gap>0?'qty-gap-pos':'qty-ok'}">${gap>0?'+'+gap.toLocaleString():'0'}</td>
       <td style="font-size:11px;color:var(--text3)">${r.prs.join(', ')}</td>
+      <td style="font-size:11px;color:var(--text3)">${[...new Set(r.prDates)].join(', ') || '—'}</td>
       <td><span class="badge ${fillPct>=100?'badge-ok':fillPct>=50?'badge-warn':'badge-danger'}">${fillPct}% filled</span></td>
     </tr>`;
   }).join('');
@@ -683,8 +705,9 @@ function exportSplitExcel(){
   const map={};
   data.forEach(r=>{
     const k=r.mr+'|'+r.sku;
-    if(!map[k]) map[k]={mr:r.mr,sku:r.sku,mrQty:r.mrQty,prs:[],totalPR:0,mrDate:r.mrDate};
+    if(!map[k]) map[k]={mr:r.mr,sku:r.sku,mrQty:r.mrQty,prs:[],prDates:[],totalPR:0,mrDate:r.mrDate};
     map[k].prs.push(r.prId);
+    if(r.prDate) map[k].prDates.push(r.prDate);
     map[k].totalPR+=r.prQty;
   });
   const splits=Object.values(map).filter(r=>r.prs.length>1);
@@ -693,20 +716,22 @@ function exportSplitExcel(){
     return;
   }
   
-  let csv = 'MR No,SKU Name,MR Qty,Fulfilled,Gap,PRs,Status\\n';
+  let csv = 'MR No,MR Date,SKU Name,MR Qty,Fulfilled,Gap,PR IDs,PR Dates,Status\n';
   splits.forEach(r => {
     const gap = r.mrQty - r.totalPR;
     const fillPct = Math.round(r.totalPR/r.mrQty*100);
     const esc = s => `"${String(s).replace(/"/g, '""')}"`;
     csv += [
       r.mr,
+      r.mrDate || "",
       r.sku,
       r.mrQty,
       r.totalPR,
       gap,
       r.prs.join(', '),
+      [...new Set(r.prDates)].join(', '),
       `${fillPct}% filled`
-    ].map(esc).join(',') + '\\n';
+    ].map(esc).join(',') + '\n';
   });
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

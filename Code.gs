@@ -38,7 +38,8 @@ const COLUMN_MAP = {
   prCreatedBy: "PR Created By",
   mrCreatedBy: "MR Created By",
   fillDays:    "Fullfillment Days",
-  fillRate:    "Fill_Rate"
+  fillRate:    "Fill_Rate",
+  itemType:    "Item type"
 };
 
 
@@ -100,6 +101,7 @@ function getData(params) {
     const prQty   = toNum(safeVal(row, idx.prQty));
     const days    = toNum(safeVal(row, idx.fillDays));
     const fill    = toNum(safeVal(row, idx.fillRate));
+    const itemType = safeStr(row, idx.itemType);
 
     // Server-side filters (optional, sent from dashboard URL params)
     if (params.from && mrDate && mrDate < params.from) continue;
@@ -123,7 +125,8 @@ function getData(params) {
       prCreated:  prBy,
       mrCreated:  mrBy,
       days:       days,
-      fill:       fill
+      fill:       fill,
+      itemType:   itemType
     });
   }
 
