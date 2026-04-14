@@ -33,7 +33,7 @@ const CONFIG = {
   COL_MR_ID:         "MR ID",
   COL_PR_CREATED_BY: "PR Created By",
   COL_MR_CREATED_BY: "MR Created By",
-  COL_FILL_DAYS:     "`Fullfillment Days`",   // note: matches your sheet's spelling exactly, including backticks!
+  COL_FILL_DAYS:     "`Fullfillment Days`",   // note: matches your sheet's spelling exactly, including backticks! Linked to frontend dynamic SLA.
   COL_FILL_RATE:     "Fill_Rate",
 
   // CORS: Add your Vercel domain here for security (or keep * for open access)

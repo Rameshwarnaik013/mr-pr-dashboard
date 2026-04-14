@@ -246,8 +246,17 @@ tr:hover td { background: var(--bg3); }
       <select id="wh-filter" onchange="render()"><option value="">All Warehouses</option></select>
     </div>
     <div class="filter-group">
-      <span class="filter-label">Month</span>
-      <select id="month-filter" onchange="render()"><option value="">All Months</option></select>
+      <span class="filter-label">Person</span>
+      <select id="person-filter" onchange="render()"><option value="">All Persons</option></select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">Fullfillment Days</span>
+      <input type="number" id="sla-input" value="2" min="0" style="width:50px" onchange="updateSLA();render()" />
+    </div>
+    <div class="filter-group" style="padding-left:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer">
+        <input type="checkbox" id="delayed-only" onchange="render()" /> Only SHOW Delayed
+      </label>
     </div>
   </div>
 
@@ -342,11 +351,16 @@ tr:hover td { background: var(--bg3); }
 </div>
 
 <script>
-const SLA = 2;
+let SLA = 2;
 let ALL_DATA = [];
 let activePeriod = 'all';
 let customFrom = null, customTo = null;
 let sortCol = 'days', sortDir = -1;
+
+function updateSLA() {
+  const v = parseInt(document.getElementById('sla-input').value, 10);
+  if (!isNaN(v)) SLA = v;
+}
 
 // ---------- DEMO DATA (shown when no API connected) ----------
 const DEMO = [
@@ -492,6 +506,7 @@ function populateFilters(){
   const skus=[...new Set(ALL_DATA.map(r=>r.sku))].sort();
   const months=[...new Set(ALL_DATA.map(r=>r.mrDate ? r.mrDate.slice(0,7) : ""))].filter(Boolean).sort().reverse();
   const whs=[...new Set(ALL_DATA.map(r=>r.wh))].sort();
+  const persons=[...new Set([...ALL_DATA.map(r=>r.mrCreated), ...ALL_DATA.map(r=>r.prCreated)])].filter(Boolean).sort();
   
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const formatMonth = (yyyy_mm) => {
@@ -504,23 +519,31 @@ function populateFilters(){
   const fill = (id, items, isMonth=false) => {
     const el = document.getElementById(id);
     const cur = el.value;
-    el.innerHTML = '<option value="">All</option>' + items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${isMonth ? formatMonth(v) : v.split(' - ')[0]}</option>`).join('');
+    el.innerHTML = '<option value="">All</option>' + items.map(v=>`<option value="${v}"${v===cur?' selected':''}>${isMonth ? formatMonth(v) : (v.includes('@') ? v.split('@')[0] : v.split(' - ')[0])}</option>`).join('');
   };
   fill('sku-filter', skus);
   fill('month-filter', months, true);
   fill('wh-filter', whs);
+  fill('person-filter', persons);
 }
 
 function getFiltered(){
   const sku = document.getElementById('sku-filter').value;
   const month = document.getElementById('month-filter').value;
   const wh = document.getElementById('wh-filter').value;
-  return ALL_DATA.filter(r=>
-    inDateRange(r) &&
-    (!sku || r.sku===sku) &&
-    (!month || r.mrDate.slice(0,7)===month) &&
-    (!wh || r.wh===wh)
-  );
+  const person = document.getElementById('person-filter').value;
+  const delayedOnly = document.getElementById('delayed-only').checked;
+
+  return ALL_DATA.filter(r=>{
+    const dateMatch = inDateRange(r);
+    const skuMatch = !sku || r.sku===sku;
+    const monthMatch = !month || r.mrDate.slice(0,7)===month;
+    const whMatch = !wh || r.wh===wh;
+    const personMatch = !person || r.mrCreated===person || r.prCreated===person;
+    const delayedMatch = !delayedOnly || r.days > SLA;
+
+    return dateMatch && skuMatch && monthMatch && whMatch && personMatch && delayedMatch;
+  });
 }
 
 // ---------- RENDER ----------
@@ -679,7 +702,7 @@ function renderMainTable(data){
     if(r.fill<1&&r.days>SLA){status='badge-danger';stxt='Delayed+Partial';}
     else if(r.days>SLA){status='badge-danger';stxt='Delayed';}
     else if(r.fill<1){status='badge-warn';stxt='Partial';}
-    return `<tr>
+    return `<tr style="${r.days > SLA ? 'background: rgba(240,82,82,0.05)' : ''}">
       <td class="mono" style="font-size:11px">${r.mr}</td>
       <td class="mono">${r.mrDate}</td>
       <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${r.sku}">${r.sku}</td>
